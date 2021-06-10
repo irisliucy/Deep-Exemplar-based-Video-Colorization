@@ -67,7 +67,9 @@ class Compose(object):
 
     def __call__(self, inputs):
         for t in self.transforms:
+            print('{} transforming...'.format(t))
             inputs = t(inputs)
+            print(inputs)
         return inputs
 
 

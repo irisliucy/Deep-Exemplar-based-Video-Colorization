@@ -3,9 +3,12 @@ from __future__ import print_function
 import argparse
 import glob
 import os
+import sys
 import time
 
 import cv2
+import imageio
+from skimage import io
 import numpy as np
 import torch
 import torch.backends.cudnn as cudnn
@@ -38,7 +41,7 @@ def colorize_video(opt, input_path, reference_file, output_path, nonlocal_net, c
     print("processing the folder:", input_path)
     path, dirs, filenames = os.walk(input_path).__next__()
     file_count = len(filenames)
-    filenames.sort(key=lambda f: int("".join(filter(str.isdigit, f) or -1)))
+    # filenames.sort(key=lambda f: int("".join(filter(str.isdigit, f) or -1)))
 
     # NOTE: resize frames to 216*384
     transform = transforms.Compose(
@@ -49,15 +52,29 @@ def colorize_video(opt, input_path, reference_file, output_path, nonlocal_net, c
     # otherwise, use the specified reference image
     ref_name = input_path + filenames[0] if opt.frame_propagate else reference_file
     print("reference name:", ref_name)
-    frame_ref = Image.open(ref_name)
+    # frame_ref = Image.open(ref_name)
+    frame_ref = cv2.imread(ref_name)[:,:,::-1]
+    try:
+        print(frame_ref.shape)
+    except:
+        print("Error image path: " + ref_name)
+    try:
+        sk_img = io.imread(ref_name)
+        print(sk_img.shape)
+    except:
+        cv2.imwrite(ref_name, frame_ref[:,:,::-1])    
+    # frame_ref = imageio.imread(ref_name)
 
     total_time = 0
     I_last_lab_predict = None
 
+    print('transforming IB...')
     IB_lab_large = transform(frame_ref).unsqueeze(0).cuda()
+    print(IB_lab_large)
     IB_lab = torch.nn.functional.interpolate(IB_lab_large, scale_factor=0.5, mode="bilinear")
     IB_l = IB_lab[:, 0:1, :, :]
     IB_ab = IB_lab[:, 1:3, :, :]
+    print('transforming reference...')
     with torch.no_grad():
       I_reference_lab = IB_lab
       I_reference_l = I_reference_lab[:, 0:1, :, :]
@@ -65,8 +82,10 @@ def colorize_video(opt, input_path, reference_file, output_path, nonlocal_net, c
       I_reference_rgb = tensor_lab2rgb(torch.cat((uncenter_l(I_reference_l), I_reference_ab), dim=1))
       features_B = vggnet(I_reference_rgb, ["r12", "r22", "r32", "r42", "r52"], preprocess=True)
 
+    print('transforming IA...')
     for index, frame_name in enumerate(tqdm(filenames)):
         frame1 = Image.open(os.path.join(input_path, frame_name))
+        # frame1 = imageio.imread(os.path.join(input_path, frame_name))
         IA_lab_large = transform(frame1).unsqueeze(0).cuda()
         IA_lab = torch.nn.functional.interpolate(IA_lab_large, scale_factor=0.5, mode="bilinear")
 
@@ -120,8 +139,9 @@ def colorize_video(opt, input_path, reference_file, output_path, nonlocal_net, c
         save_frames(IA_predict_rgb, output_path, index)
 
     # output video
-    video_name = "video.avi"
-    folder2vid(image_folder=output_path, output_dir=output_path, filename=video_name)
+    # video_name = "video.avi"
+    image_name = "colorized_frame.png"
+    folder2vid(image_folder=output_path, output_dir=output_path, filename=image_name)
     print()
 
 if __name__ == "__main__":
@@ -129,7 +149,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "--frame_propagate", default=False, type=bool, help="propagation mode, , please check the paper"
     )
-    parser.add_argument("--image_size", type=int, default=[216 * 2, 384 * 2], help="the image size, eg. [216,384]")
+    parser.add_argument("--image_size", type=int, nargs="+", default=[216 * 2, 384 * 2], help="the image size, eg. [216,384]")
     parser.add_argument("--cuda", action="store_false")
     parser.add_argument("--gpu_ids", type=str, default="0", help="separate by comma")
     parser.add_argument("--clip_path", type=str, default="./sample_videos/clips/v32", help="path of input clips")
@@ -166,21 +186,25 @@ if __name__ == "__main__":
     vggnet.cuda()
 
     for ref_name in refs:
-        try:
-            colorize_video(
-                opt,
-                opt.clip_path,
-                os.path.join(opt.ref_path, ref_name),
-                os.path.join(opt.output_path, clip_name + "_" + ref_name.split(".")[0]),
-                nonlocal_net,
-                colornet,
-                vggnet,
-            )
-        except Exception as error:
-            print("error when colorizing the video " + ref_name)
-            print(error)
+        # try:
+        colorize_video(
+            opt,
+            opt.clip_path,
+            os.path.join(opt.ref_path, ref_name),
+            os.path.join(opt.output_path, clip_name + "_" + ref_name.split(".")[0]),
+            nonlocal_net,
+            colornet,
+            vggnet,
+        )
+        # except Exception as e:
+        #     print("error when colorizing the image " + ref_name)
+        #     exc_type, exc_obj, exc_tb = sys.exc_info()
+        #     fname = os.path.split(exc_tb.tb_frame.f_code.co_filename)[1]
+        #     print(exc_type, fname, exc_tb.tb_lineno)
+        #     print(e)
 
-    video_name = "video.avi"
+    image_name = "colorized_frame.png"
+    # video_name = "video.avi"
     clip_output_path = os.path.join(opt.output_path, clip_name)
     mkdir_if_not(clip_output_path)
-    folder2vid(image_folder=opt.clip_path, output_dir=clip_output_path, filename=video_name)
+    folder2vid(image_folder=opt.clip_path, output_dir=clip_output_path, filename=image_name)

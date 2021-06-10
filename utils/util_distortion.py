@@ -10,6 +10,7 @@ from skimage import color
 from skimage.draw import random_shapes
 from skimage.filters import gaussian
 from skimage.transform import resize
+# from skimage import img_as_ubyte
 
 cv2.setNumThreads(0)
 from numba import jit, u1, u2
@@ -216,23 +217,26 @@ class centeredPad_with_height(object):
 
 class CenterPad(object):
     def __init__(self, image_size):
+        print('image size: ', image_size)
         self.height = image_size[0]
         self.width = image_size[1]
 
     def __call__(self, image):
         # pad the image to 16:9
         # pad height
-        I = np.array(image)
-
+        I = np.array(image) 
         # for padded input
-        height_old = np.size(I, 0)
-        width_old = np.size(I, 1)
+        height_old = 224#np.size(I, 0)
+        width_old = 224#np.size(I, 1)
         old_size = [height_old, width_old]
         height = self.height
         width = self.width
-        I_pad = np.zeros((height, width, np.size(I, 2)))
+        # I_pad = np.zeros((height, width, np.size(I, 2)))
+        I_pad = np.zeros((height, width, 3))
+        print('I_pad...')
 
         ratio = height / width
+        print(ratio)
         if height_old / width_old == ratio:
             if height_old == height:
                 return Image.fromarray(I.astype(np.uint8))
@@ -241,12 +245,17 @@ class CenterPad(object):
             return Image.fromarray(I_resize.astype(np.uint8))
 
         if height_old / width_old > ratio:  # pad the width and crop
+            print('hello')
             new_size = [int(x * width / width_old) for x in old_size]
-            I_resize = resize(I, new_size, mode="reflect", preserve_range=True, clip=False, anti_aliasing=True)
-            width_resize = np.size(I_resize, 1)
+            # I_resize = np.zeros((new_size[0], new_size[1],3))
+            print(type(I))
+            print(tuple(new_size))
+            I_resize = resize(I, tuple(new_size), mode="reflect", preserve_range=True, clip=False, anti_aliasing=True)
+            width_resize =  np.size(I_resize, 1)
             height_resize = np.size(I_resize, 0)
             start_height = (height_resize - height) // 2
             I_pad[:, :, :] = I_resize[start_height : (start_height + height), :, :]
+            print(I_pad)
         else:  # pad the height and crop
             new_size = [int(x * height / height_old) for x in old_size]
             I_resize = resize(I, new_size, mode="reflect", preserve_range=True, clip=False, anti_aliasing=True)
@@ -327,7 +336,7 @@ class CenterPadCrop_numpy(object):
     def __call__(self, image, threshold=3 / 4):
         # pad the image to 16:9
         # pad height
-        I = np.array(image)
+        I = np.array(image, dtype=np.unit8)
         # for padded input
         height_old = np.size(I, 0)
         width_old = np.size(I, 1)
@@ -371,7 +380,7 @@ class CenterPadCrop_numpy(object):
                 ]
         else:  # pad the height and crop
             new_size = [int(x * height / height_old) for x in old_size]
-            I_resize = resize(I, new_size, mode="reflect", preserve_range=True, clip=False, anti_aliasing=True)
+            I_resize.resize(I, new_size, mode="reflect", preserve_range=True, clip=False, anti_aliasing=True)
             width_resize = np.size(I_resize, 1)
             height_resize = np.size(I_resize, 0)
             start_width = (width_resize - width) // 2

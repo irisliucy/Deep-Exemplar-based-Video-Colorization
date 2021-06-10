@@ -257,15 +257,16 @@ def folder2vid(image_folder, output_dir, filename):
     images.sort()
     frame = cv2.imread(os.path.join(image_folder, images[0]))
     height, width, layers = frame.shape
-    print("writing to video " + os.path.join(output_dir, filename))
-    video = cv2.VideoWriter(
-        os.path.join(output_dir, filename), cv2.VideoWriter_fourcc("D", "I", "V", "X"), 24, (width, height)
-    )
+    print("writing to image " + os.path.join(output_dir, filename))
+    # video = cv2.VideoWriter(
+    #     os.path.join(output_dir, filename), cv2.VideoWriter_fourcc("D", "I", "V", "X"), 24, (width, height)
+    # )
 
     for image in images:
-        video.write(cv2.imread(os.path.join(image_folder, image)))
+        cv2.imwrite(os.path.join(output_dir, filename), cv2.imread(os.path.join(image_folder, image)))
+        # video.write(cv2.imread(os.path.join(image_folder, image)))
 
-    video.release()
+    # video.release()
 
     # import imageio
     # frames = []
